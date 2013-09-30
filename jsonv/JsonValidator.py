@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #############################################################################
 # Author  : Jerome ODIER
 #
@@ -29,7 +28,13 @@ class Validator(jsonv.JsonParser.Parser):
 
 		self.verbose = verbose
 
-		self.entry = Rule(None, None, None, None, None)
+		self.entry = Rule(
+			'object',
+			'ENTRY',
+			None,
+			None,
+			None
+		)
 
 		self.RULES = {
 		}
@@ -81,7 +86,7 @@ class Validator(jsonv.JsonParser.Parser):
 			#####################################################
 
 			if not rule_type in ['pair', 'value'] or pair2.value.type != pair2.value.TYPE_OBJECT:
-				raise JsonValidatorError('error: line `%d`: invalid rule `%s`' % (pair2.line, rule_type))
+				raise JsonValidatorError('error: line `%d`: invalid rule type `%s`' % (pair2.line, rule_type))
 
 			#####################################################
 			# GET PARAMETERS				    #
@@ -101,7 +106,7 @@ class Validator(jsonv.JsonParser.Parser):
 
 				if   pair3.key == 'rule':
 					if pair3.value.type != pair2.value.TYPE_STR:
-						raise JsonValidatorError('error: line `%d`: invalid type for pair `rule`' % pair3.line)
+						raise JsonValidatorError('error: line `%d`: invalid value type for pair `rule`' % pair3.line)
 					if not rule_name is None:
 						print('warning: line `%d`: redefined pair `rule`' % pair3.line)
 					rule_name = pair3.value.value
@@ -112,7 +117,7 @@ class Validator(jsonv.JsonParser.Parser):
 
 				elif pair3.key == 'key':
 					if pair3.value.type != pair2.value.TYPE_STR:
-						raise JsonValidatorError('error: line `%d`: invalid type for pair `key`' % pair3.line)
+						raise JsonValidatorError('error: line `%d`: invalid value type for pair `key`' % pair3.line)
 					if not json_key is None:
 						print('warning: line `%d`: redefined pair `key`' % pair3.line)
 					json_key = pair3.value.value
@@ -123,7 +128,7 @@ class Validator(jsonv.JsonParser.Parser):
 
 				elif pair3.key == 'type':
 					if pair3.value.type != pair2.value.TYPE_STR:
-						raise JsonValidatorError('error: line `%d`: invalid type for pair `type`' % pair3.line)
+						raise JsonValidatorError('error: line `%d`: invalid value type for pair `type`' % pair3.line)
 					if not json_type is None:
 						print('warning: line `%d`: redefined pair `type`' % pair3.line)
 					json_type = pair3.value.value
@@ -134,7 +139,7 @@ class Validator(jsonv.JsonParser.Parser):
 
 				elif pair3.key == '::=':
 					if pair3.value.type != pair2.value.TYPE_STR:
-						raise JsonValidatorError('error: line `%d`: invalid type for pair `::=`' % pair3.line)
+						raise JsonValidatorError('error: line `%d`: invalid value type for pair `::=`' % pair3.line)
 					if rule_expr is None:
 						rule_expr = '(%s)' % pair3.value.value
 					else:
@@ -145,14 +150,14 @@ class Validator(jsonv.JsonParser.Parser):
 				#############################################
 
 				else:
-					raise JsonValidatorError('error: line `%d`: invalid key `%s`' % (pair3.line, pair3.key))
+					raise JsonValidatorWarning('error: line `%d`: invalid pair `%s`' % (pair3.line, pair3.key))
 
 			#####################################################
 			# CHECK PARAMETERS				    #
 			#####################################################
 
 			if rule_name is None:
-				raise JsonValidatorError('error: line `%d`: undefined name for rule `%s`' % (pair2.line, rule_name))
+				raise JsonValidatorError('error: line `%d`: undefined name for rule `%s`' % (pair2.line, (('???'))))
 
 			if json_type is None:
 				raise JsonValidatorError('error: line `%d`: undefined type for rule `%s`' % (pair2.line, rule_name))
@@ -160,17 +165,17 @@ class Validator(jsonv.JsonParser.Parser):
 			#####################################################
 
 			if not json_type in ['object', 'array', 'bool', 'flt', 'str']:
-				raise JsonValidatorError('error: line `%d`: invalid type `%s` for rule `%s`' % (pair2.line, json_type, rule_name))
+				raise JsonValidatorError('error: line `%d`: invalid json type `%s` for rule `%s`' % (pair2.line, json_type, rule_name))
 
 			#####################################################
 
 			if rule_type in ['pair']:
 				if json_key is None:
-					raise JsonValidatorError('error: line `%d`: undefined key for rule `%s`' % (pair2.line, rule_name))
+					raise JsonValidatorError('error: line `%d`: undefined pair `key` for rule `%s`' % (pair2.line, rule_name))
 
 			if json_type in ['object', 'array']:
 				if rule_expr is None:
-					raise JsonValidatorError('error: line `%d`: undefined ::= for rule `%s`' % (pair2.line, rule_name))
+					raise JsonValidatorError('error: line `%d`: undefined pair `::=` for rule `%s`' % (pair2.line, rule_name))
 
 			#####################################################
 			# APPEND RULE					    #
@@ -236,7 +241,7 @@ class Validator(jsonv.JsonParser.Parser):
 		expected = ','.join(closure)
 
 		if len(expected) == 0:
-			expected = 'Ø'
+			expected = 'null'
 
 		#############################################################
 		# OBJECT						    #
@@ -377,7 +382,7 @@ class Validator(jsonv.JsonParser.Parser):
 		expected = ','.join(closure)
 
 		if len(expected) == 0:
-			expected = 'Ø'
+			expected = 'null'
 
 		#############################################################
 		# OBJECT						    #

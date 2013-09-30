@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #############################################################################
 # Author  : Jerome ODIER
 #
@@ -201,44 +200,5 @@ class Nfa(object):
 		#############################################################
 
 		return result + '}\n'
-
-#############################################################################
-
-if __name__ == '__main__':
-
-	if True:
-		nfa = Nfa(1)
-
-		nfa.addTransition(1, 'x', 2)
-		nfa.addTransition(1, 'z', 5)
-		nfa.addTransition(2, epsilon, 3)
-		nfa.addTransition(2, epsilon, 5)
-		nfa.addTransition(3, 'x', 4)
-		nfa.addTransition(3, 'y', 4)
-		nfa.addTransition(4, epsilon, 3)
-		nfa.addTransition(4, epsilon, 5)
-
-		nfa.addFinalState(5)
-
-	if False:
-		nfa = Nfa(0)
-
-		nfa.addTransition(0, epsilon, 1)
-		nfa.addTransition(0, epsilon, 3)
-		nfa.addTransition(1, 'b', 2)
-		nfa.addTransition(2, epsilon, 5)
-		nfa.addTransition(3, 'a', 4)
-		nfa.addTransition(4, epsilon, 5)
-		nfa.addTransition(5, epsilon, 0)
-		nfa.addTransition(5, epsilon, 6)
-		nfa.addTransition(6, 'b', 7)
-		nfa.addTransition(7, 'c', 8)
-		nfa.addTransition(8, 'd', 9)
-
-		nfa.addFinalState(9)
-
-	print(nfa.__str__())
-
-	print(nfa.to_dfa().__str__())
 
 #############################################################################

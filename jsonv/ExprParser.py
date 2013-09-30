@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #############################################################################
 # Author  : Jerome ODIER
 #
@@ -25,8 +24,14 @@ class ExprParserError(Exception):
 #############################################################################
 
 class RefValue(object):
+
 	def __init__(self):
 		self.value = 0
+
+	def add_and_fetch(self, value = 1):
+		self.value += value
+
+		return self.value
 
 #############################################################################
 
@@ -44,7 +49,7 @@ def isIdent(s):
 def getType(s):
 
 	if   isIdent(s):
-		result = Node.ELEMENT_RULE
+		result = Node.NODE_TYPE_RULE
 	else:
 		result = -1
 
@@ -73,15 +78,15 @@ class Tokenizer(object):
 			line = self.lines[i]
 
 			if   token == '|':
-				self.types.append(Node.ELEMENT_VB)
+				self.types.append(Node.NODE_TYPE_IOR)
 			elif token == ',':
-				self.types.append(Node.ELEMENT_COMMA)
+				self.types.append(Node.NODE_TYPE_AND)
 			elif token == '?':
-				self.types.append(Node.ELEMENT_OPT)
+				self.types.append(Node.NODE_TYPE_OPT)
 			elif token == '+':
-				self.types.append(Node.ELEMENT_PLUS)
+				self.types.append(Node.NODE_TYPE_PLUS)
 			elif token == '*':
-				self.types.append(Node.ELEMENT_STAR)
+				self.types.append(Node.NODE_TYPE_STAR)
 			elif token == '(':
 				self.types.append(Tokenizer.LPAREN)
 			elif token == ')':
@@ -130,11 +135,6 @@ class Tokenizer(object):
 		else:
 			return self.lines[self.i - 1]
 
-	#####################################################################
-
-	def isOccurrenceIndicator(self):
-		return self.types[self.i] in [Node.ELEMENT_OPT, Node.ELEMENT_PLUS, Node.ELEMENT_STAR]
-
 #############################################################################
 
 class Parser(object):
@@ -160,9 +160,9 @@ class Parser(object):
 
 		left = self.parseTerm(rule_keys)
 
-		if self.tokenizer.hasNext() and self.tokenizer.peekType() == Node.ELEMENT_VB:
+		if self.tokenizer.hasNext() and Node.isIor(self.tokenizer.peekType()):
 
-			node = Node(Node.ELEMENT_VB)
+			node = Node(Node.NODE_TYPE_IOR)
 			self.tokenizer.next()
 
 			right = self.parseExpression(rule_keys)
@@ -181,19 +181,48 @@ class Parser(object):
 		# term ::= suffix ( `,` suffix )+			    #
 		#############################################################
 
-		left = self.parseSuffix(rule_keys)
+		i = 0
 
-		if self.tokenizer.hasNext() and self.tokenizer.peekType() == Node.ELEMENT_COMMA:
+		suffixes = {}
 
-			node = Node(Node.ELEMENT_COMMA)
-			self.tokenizer.next()
+		while True:
+			key = None
 
-			right = self.parseTerm(rule_keys)
+			suffix = self.parseSuffix(rule_keys)
 
-			node.nodeLeft = left
-			node.nodeRight = right
+			if   Node.isRule(suffix.nodeType):
+				key = rule_keys.get(suffix         .nodeValue)
+			elif Node.isOcOp(suffix.nodeType):
+				key = rule_keys.get(suffix.nodeLeft.nodeValue)
 
-			left = node
+			if key is None:
+				key = str(i)
+				i += 1
+
+			suffixes[key] = suffix
+
+			if self.tokenizer.hasNext() and Node.isAnd(self.tokenizer.peekType()):
+				self.tokenizer.next()
+			else:
+				break
+
+		#############################################################
+
+		left = None
+
+		for suffix_name in suffixes:
+
+			if left is None:
+				left = suffixes[suffix_name]
+			else:
+				node = Node(Node.NODE_TYPE_AND)
+
+				right = suffixes[suffix_name]
+
+				node.nodeLeft = left
+				node.nodeRight = right
+
+				left = node
 
 		return left
 
@@ -206,7 +235,7 @@ class Parser(object):
 
 		left_and_right = self.parseFactor(rule_keys)
 
-		if self.tokenizer.hasNext() and self.tokenizer.isOccurrenceIndicator():
+		if self.tokenizer.hasNext() and Node.isOcOp(self.tokenizer.peekType()):
 
 			node = Node(self.tokenizer.peekType())
 			self.tokenizer.next()
@@ -242,9 +271,9 @@ class Parser(object):
 		# factor ::= RULE					    #
 		#############################################################
 
-		if self.tokenizer.hasNext() and self.tokenizer.peekType() == Node.ELEMENT_RULE:
+		if self.tokenizer.hasNext() and Node.isRule(self.tokenizer.peekType()):
 
-			node = Node(Node.ELEMENT_RULE)
+			node = Node(Node.NODE_TYPE_RULE)
 
 			node.nodeValue = self.tokenizer.next()
 
@@ -268,122 +297,88 @@ class Parser(object):
 
 	#####################################################################
 
-	def _nfa(self, dfa, cnt, OLD_STATE0, NEW_STATE0, node):
+	def _nfa(self, automata, cnt, FROM, node, VERS):
 		#############################################################
 		# `|` operator						    #
 		#############################################################
 
-		if   node.nodeType == Node.ELEMENT_VB:
-			cnt.value += 1
-
-			OLD_STATE1, NEW_STATE1 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeLeft)
-
-			cnt.value += 0
-
-			OLD_STATE2, NEW_STATE2 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeRight)
-
-			return OLD_STATE1, NEW_STATE2
+		if   node.nodeType == Node.NODE_TYPE_IOR:
+			self._nfa(automata, cnt, FROM, node.nodeLeft, VERS)
+			self._nfa(automata, cnt, FROM, node.nodeRight, VERS)
 
 		#############################################################
 		# `,` operator						    #
 		#############################################################
 
-		elif node.nodeType == Node.ELEMENT_COMMA:
-			cnt.value += 1
+		elif node.nodeType == Node.NODE_TYPE_AND:
+			TMP1 = cnt.add_and_fetch()
 
-			OLD_STATE1, NEW_STATE1 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeLeft)
-
-			cnt.value += 1
-
-			OLD_STATE2, NEW_STATE2 = self._nfa(dfa, cnt, NEW_STATE1, cnt.value, node.nodeRight)
-
-			return OLD_STATE1, NEW_STATE2
+			self._nfa(automata, cnt, FROM, node.nodeLeft, TMP1)
+			self._nfa(automata, cnt, TMP1, node.nodeRight, VERS)
 
 		#############################################################
 		# `?` operator						    #
 		#############################################################
 
-		elif node.nodeType == Node.ELEMENT_OPT:
-			cnt.value += 1
+		elif node.nodeType == Node.NODE_TYPE_OPT:
+			TMP1 = cnt.add_and_fetch()
 
-			OLD_STATE1, NEW_STATE1 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeLeft)
+			automata.addTransition(FROM, jsonv.nfa.epsilon, TMP1)
 
-			dfa.addTransition(OLD_STATE1, jsonv.nfa.epsilon, NEW_STATE1)
+			self._nfa(automata, cnt, TMP1, node.nodeRight, VERS)
 
-			return OLD_STATE1, NEW_STATE1
+			automata.addTransition(TMP1, jsonv.nfa.epsilon, VERS)
 
 		#############################################################
 		# `+` operator						    #
 		#############################################################
 
-		elif node.nodeType == Node.ELEMENT_PLUS:
-			cnt.value += 1
+		elif node.nodeType == Node.NODE_TYPE_PLUS:
+			TMP1 = cnt.add_and_fetch()
 
-			OLD_STATE1, NEW_STATE1 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeLeft)
+			self._nfa(automata, cnt, FROM, node.nodeRight, TMP1)
 
-			cnt.value += 1
+			self._nfa(automata, cnt, TMP1, node.nodeRight, TMP1)
 
-			dfa.addTransition(NEW_STATE1, jsonv.nfa.epsilon, cnt.value)
-			dfa.addTransition(NEW_STATE1, jsonv.nfa.epsilon, cnt.value)
-
-			tokens = dfa.transitions[OLD_STATE0]
-
-			for token in tokens:
-
-				new_states = dfa.transitions[OLD_STATE0][token]
-
-				for new_state in new_states:
-
-					if new_state == NEW_STATE1:
-						dfa.addTransition(NEW_STATE1, token, NEW_STATE1)
-
-			return OLD_STATE1, cnt.value
+			automata.addTransition(TMP1, jsonv.nfa.epsilon, VERS)
 
 		#############################################################
 		# `*` operator						    #
 		#############################################################
 
-		elif node.nodeType == Node.ELEMENT_STAR:
-			cnt.value += 1
+		elif node.nodeType == Node.NODE_TYPE_STAR:
+			TMP1 = cnt.add_and_fetch()
 
-			OLD_STATE1, NEW_STATE1 = self._nfa(dfa, cnt, OLD_STATE0, cnt.value, node.nodeLeft)
+			automata.addTransition(FROM, jsonv.nfa.epsilon, TMP1)
 
-			cnt.value += 1
+			self._nfa(automata, cnt, TMP1, node.nodeRight, TMP1)
 
-			dfa.addTransition(OLD_STATE1, jsonv.nfa.epsilon, cnt.value)
-			dfa.addTransition(NEW_STATE1, jsonv.nfa.epsilon, cnt.value)
-
-			tokens = dfa.transitions[OLD_STATE0]
-
-			for token in tokens:
-
-				new_states = dfa.transitions[OLD_STATE0][token]
-
-				for new_state in new_states:
-
-					if new_state == NEW_STATE1:
-						dfa.addTransition(NEW_STATE1, token, NEW_STATE1)
-
-			return OLD_STATE1, cnt.value
+			automata.addTransition(TMP1, jsonv.nfa.epsilon, VERS)
 
 		#############################################################
 		# terminal (RULE)					    #
 		#############################################################
 
-		elif node.nodeType == Node.ELEMENT_RULE:
-			dfa.addTransition(OLD_STATE0, node.nodeValue, NEW_STATE0)
-
-			return OLD_STATE0, NEW_STATE0
+		elif node.nodeType == Node.NODE_TYPE_RULE:
+			automata.addTransition(FROM, node.nodeValue, VERS)
 
 	#####################################################################
 
 	def dfa(self):
+		cnt = RefValue()
+
 		result = jsonv.nfa.Nfa(0)
 
-		if self.root.nodeType != Node.ELEMENT_RULE:
-			result.addFinalState(self._nfa(result, RefValue(), 0, 0, self.root)[1])
+		if self.root.nodeType != Node.NODE_TYPE_RULE:
+
+			tmp = cnt.add_and_fetch(value = 1)
+			self._nfa(result, cnt, 0, self.root, tmp)
+			result.addFinalState(tmp)
+
 		else:
-			result.addFinalState(self._nfa(result, RefValue(), 0, 1, self.root)[1])
+			tmp = cnt.add_and_fetch(value = 0)
+			self._nfa(result, cnt, 0, self.root, 0x0)
+			result.addFinalState(0x0)
 
 		return result.to_dfa()
 
@@ -402,16 +397,42 @@ def parseString(s, rule_keys, line = 1):
 class Node(object):
 	#####################################################################
 
-	ELEMENT_VB = 100
-	ELEMENT_COMMA = 101
-	ELEMENT_OPT = 102
-	ELEMENT_PLUS = 103
-	ELEMENT_STAR = 104
-	ELEMENT_RULE = 105
+	NODE_TYPE_IOR = 100
+	NODE_TYPE_AND = 101
+	NODE_TYPE_OPT = 102
+	NODE_TYPE_PLUS = 103
+	NODE_TYPE_STAR = 104
+	NODE_TYPE_RULE = 105
 
 	#####################################################################
 
-	def __init__(self, nodeType, nodeValue = None, level = -1):
+	@staticmethod
+	def isAnd(nodeType):
+		return nodeType in [Node.NODE_TYPE_AND]
+
+	#####################################################################
+
+	@staticmethod
+	def isIor(nodeType):
+		return nodeType in [Node.NODE_TYPE_IOR]
+
+	#####################################################################
+
+	@staticmethod
+	def isOcOp(nodeType):
+		return nodeType in [Node.NODE_TYPE_OPT,
+				    Node.NODE_TYPE_PLUS,
+				    Node.NODE_TYPE_STAR]
+
+	#####################################################################
+
+	@staticmethod
+	def isRule(nodeType):
+		return nodeType in [Node.NODE_TYPE_RULE]
+
+	#####################################################################
+
+	def __init__(self, nodeType, nodeValue = None):
 		self.nodeType = nodeType
 		self.nodeValue = nodeValue
 		self.nodeLeft = None
@@ -421,17 +442,17 @@ class Node(object):
 
 	def __str__(self):
 
-		if   self.nodeType == self.ELEMENT_VB:
+		if   self.nodeType == self.NODE_TYPE_IOR:
 			return '`|`(%s, %s)' % (self.nodeLeft.__str__(), self.nodeRight.__str__())
-		elif self.nodeType == self.ELEMENT_COMMA:
+		elif self.nodeType == self.NODE_TYPE_AND:
 			return '`&`(%s, %s)' % (self.nodeLeft.__str__(), self.nodeRight.__str__())
-		elif self.nodeType == self.ELEMENT_OPT:
+		elif self.nodeType == self.NODE_TYPE_OPT:
 			return '`?`(%s)' % (self.nodeLeft.__str__())
-		elif self.nodeType == self.ELEMENT_PLUS:
+		elif self.nodeType == self.NODE_TYPE_PLUS:
 			return '`+`(%s)' % (self.nodeLeft.__str__())
-		elif self.nodeType == self.ELEMENT_STAR:
+		elif self.nodeType == self.NODE_TYPE_STAR:
 			return '`*`(%s)' % (self.nodeLeft.__str__())
-		elif self.nodeType == self.ELEMENT_RULE:
+		elif self.nodeType == self.NODE_TYPE_RULE:
 			return self.nodeValue
 
 #############################################################################
