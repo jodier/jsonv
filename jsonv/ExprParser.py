@@ -141,15 +141,15 @@ class Parser(object):
 	#####################################################################
 
 	def __init__(self, s, rule_keys, line = 1):
-		self.tokenizer = Tokenizer(s, line = line)
 
-		if self.tokenizer.hasNext():
+		if s.strip() != '()':
+			self.tokenizer = Tokenizer(s, line = line)
+
 			self.root = self.parseExpression(rule_keys)
-
-			self.table = self.dfa()
-
 		else:
-			self.error('emtpy regular expression')
+			self.root = ((((((((((((((None))))))))))))))
+
+		self.table = self.dfa()
 
 	#####################################################################
 
@@ -189,6 +189,9 @@ class Parser(object):
 			key = None
 
 			suffix = self.parseSuffix(rule_keys)
+
+			if suffix is None:
+				break
 
 			if   Node.isRule(suffix.nodeType):
 				key = rule_keys.get(suffix         .nodeValue)
@@ -284,7 +287,7 @@ class Parser(object):
 
 		#############################################################
 
-		self.error('factor expected')
+		self.error('rule expected')
 
 	#####################################################################
 
@@ -369,15 +372,20 @@ class Parser(object):
 
 		result = jsonv.nfa.Nfa(0)
 
-		if self.root.nodeType != Node.NODE_TYPE_RULE:
+		if not self.root is None:
 
-			tmp = cnt.add_and_fetch(value = 1)
-			self._nfa(result, cnt, 0, self.root, tmp)
-			result.addFinalState(tmp)
+			if not self.root is None and self.root.nodeType != Node.NODE_TYPE_RULE:
+
+				tmp = cnt.add_and_fetch(value = 1)
+				self._nfa(result, cnt, 0, self.root, tmp)
+				result.addFinalState(tmp)
+
+			else:
+				tmp = cnt.add_and_fetch(value = 0)
+				self._nfa(result, cnt, 0, self.root, 0x0)
+				result.addFinalState(0x0)
 
 		else:
-			tmp = cnt.add_and_fetch(value = 0)
-			self._nfa(result, cnt, 0, self.root, 0x0)
 			result.addFinalState(0x0)
 
 		return result.to_dfa()
