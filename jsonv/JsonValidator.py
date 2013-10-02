@@ -121,12 +121,19 @@ class Validator(jsonv.JsonParser.Parser):
 				#############################################
 
 				elif pair2.key == '::=':
+
 					if pair2.value.type != pair1.value.TYPE_STR:
 						raise JsonValidatorError('error: line `%d`: invalid value type for pair `::=`' % pair2.line)
-					if rule_expr is None:
-						rule_expr = '(%s)' % pair2.value.value
-					else:
-						rule_expr += '|(%s)' % pair2.value.value
+
+					if len(pair2.value.value.strip()) > 0:
+
+						if rule_expr is None or len(rule_expr) == 0:
+							rule_expr = '(%s)' % pair2.value.value
+						else:
+							rule_expr += '|(%s)' % pair2.value.value
+
+					elif rule_expr is None:
+						rule_expr = ''
 
 					line = pair2.line
 

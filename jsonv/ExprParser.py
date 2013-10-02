@@ -142,7 +142,7 @@ class Parser(object):
 
 	def __init__(self, s, rule_keys, line = 1):
 
-		if s.strip() != '()':
+		if len(s.strip()) > 0:
 			self.tokenizer = Tokenizer(s, line = line)
 
 			self.root = self.parseExpression(rule_keys)
